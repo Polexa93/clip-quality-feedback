@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+*.log
+
+# runtime data
+server/data/*.db
+server/data/*.db-journal
+server/data/uploads/*
+!server/data/uploads/.gitkeep
+
+.env
+.env.local
+
+.DS_Store
+Thumbs.db
