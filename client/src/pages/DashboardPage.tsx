@@ -19,7 +19,27 @@ export function DashboardPage() {
   }, []);
 
   if (error) return <div className="page error">{error}</div>;
-  if (!summary) return <div className="page">Loading…</div>;
+
+  if (!summary) {
+    return (
+      <div className="page">
+        <h1>Analytics</h1>
+        <div className="stat-row">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton-block" style={{ height: 92 }} />
+          ))}
+        </div>
+        <section>
+          <h2>Most common problems</h2>
+          <div className="skeleton-block" style={{ height: 130 }} />
+        </section>
+        <section>
+          <h2>Quality by clip type</h2>
+          <div className="skeleton-block" style={{ height: 130 }} />
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page">

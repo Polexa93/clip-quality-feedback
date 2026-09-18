@@ -34,12 +34,43 @@ export const api = {
       body: JSON.stringify({ title, clipType, videoUrl }),
     }),
 
-  createClipFromFile: (title: string, clipType: ClipType, file: File) => {
+  /**
+   * Uses XMLHttpRequest instead of `fetch` specifically so upload progress
+   * can be reported — `fetch` has no reliable, widely-supported way to
+   * observe how much of a request body has been sent yet.
+   */
+  createClipFromFile: (title: string, clipType: ClipType, file: File, onProgress?: (percent: number) => void) => {
     const form = new FormData();
     form.set("title", title);
     form.set("clipType", clipType);
     form.set("video", file);
-    return request<Clip>("/api/clips", { method: "POST", body: form });
+
+    return new Promise<Clip>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/clips");
+
+      xhr.upload.onprogress = (e) => {
+        if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+
+      xhr.onload = () => {
+        let body: unknown;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          body = undefined;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(body as Clip);
+        } else {
+          const error = (body as { error?: unknown } | undefined)?.error;
+          reject(new Error(error ? JSON.stringify(error) : `Request failed: ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error while uploading."));
+      xhr.send(form);
+    });
   },
 
   deleteClip: (id: number) => request<void>(`/api/clips/${id}`, { method: "DELETE" }),

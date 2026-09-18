@@ -1,11 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CLIP_TYPES, type Clip, type ClipType } from "@cqf/shared";
+import { CLIP_TYPES, type Clip, type ClipStatus, type ClipType } from "@cqf/shared";
 import { api } from "../api";
 import { ClipThumbnail } from "../components/ClipThumbnail";
 import { TrashIcon } from "../components/icons";
 import { Dropdown } from "../components/Dropdown";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { capitalize } from "../lib/format";
+
+type TypeFilter = "all" | ClipType;
+type StatusFilter = "all" | ClipStatus;
+type SortBy = "newest" | "rating" | "reviews";
+
+const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string }[] = [
+  { value: "all", label: "All types" },
+  ...CLIP_TYPES.map((t) => ({ value: t, label: capitalize(t) })),
+];
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "pending", label: "Pending" },
+  { value: "reviewed", label: "Reviewed" },
+];
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "rating", label: "Highest rated" },
+  { value: "reviews", label: "Most reviewed" },
+];
 
 export function ClipsPage() {
   const [clips, setClips] = useState<Clip[]>([]);
@@ -15,6 +37,29 @@ export function ClipsPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [pendingDelete, setPendingDelete] = useState<Clip | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("newest");
+
+  const visibleClips = useMemo(() => {
+    let result = clips;
+    if (typeFilter !== "all") result = result.filter((c) => c.clipType === typeFilter);
+    if (statusFilter !== "all") result = result.filter((c) => c.status === statusFilter);
+
+    result = [...result].sort((a, b) => {
+      if (sortBy === "rating") {
+        if (a.averageRating === null && b.averageRating === null) return 0;
+        if (a.averageRating === null) return 1;
+        if (b.averageRating === null) return -1;
+        return b.averageRating - a.averageRating;
+      }
+      if (sortBy === "reviews") return b.reviewCount - a.reviewCount;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return result;
+  }, [clips, typeFilter, statusFilter, sortBy]);
 
   function refresh() {
     setLoading(true);
@@ -79,8 +124,34 @@ export function ClipsPage() {
       {!loading && clips.length === 0 && <p className="empty">No clips yet — add one above.</p>}
 
       {!loading && clips.length > 0 && (
+        <div className="filter-bar">
+          <div className="field">
+            <label htmlFor="filter-type">Type</label>
+            <Dropdown id="filter-type" value={typeFilter} onChange={setTypeFilter} options={TYPE_FILTER_OPTIONS} />
+          </div>
+          <div className="field">
+            <label htmlFor="filter-status">Status</label>
+            <Dropdown
+              id="filter-status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={STATUS_FILTER_OPTIONS}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="filter-sort">Sort by</label>
+            <Dropdown id="filter-sort" value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} />
+          </div>
+        </div>
+      )}
+
+      {!loading && clips.length > 0 && visibleClips.length === 0 && (
+        <p className="empty">No clips match these filters.</p>
+      )}
+
+      {!loading && visibleClips.length > 0 && (
         <ul className="clip-list">
-          {clips.map((clip) => (
+          {visibleClips.map((clip) => (
             <li key={clip.id} className="clip-card">
               <Link to={`/clips/${clip.id}`}>
                 <ClipThumbnail videoUrl={clip.videoUrl} clipType={clip.clipType} />
@@ -140,6 +211,7 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -156,9 +228,10 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
     }
 
     setSubmitting(true);
+    if (mode === "file") setUploadProgress(0);
     try {
       if (mode === "file" && file) {
-        await api.createClipFromFile(title, clipType, file);
+        await api.createClipFromFile(title, clipType, file, setUploadProgress);
       } else {
         await api.createClipFromUrl(title, clipType, videoUrl.trim());
       }
@@ -171,6 +244,7 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
       setError(String(err));
     } finally {
       setSubmitting(false);
+      setUploadProgress(null);
     }
   }
 
@@ -194,7 +268,7 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
             id="clip-type-trigger"
             value={clipType}
             onChange={setClipType}
-            options={CLIP_TYPES.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
+            options={CLIP_TYPES.map((t) => ({ value: t, label: capitalize(t) }))}
           />
         </div>
       </div>
@@ -225,10 +299,19 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
         />
       )}
 
+      {uploadProgress !== null && (
+        <div className="upload-progress">
+          <div className="upload-progress__track">
+            <div className="upload-progress__fill" style={{ width: `${uploadProgress}%` }} />
+          </div>
+          <span className="upload-progress__value">{uploadProgress}%</span>
+        </div>
+      )}
+
       {error && <p className="error">{error}</p>}
 
       <button type="submit" disabled={submitting}>
-        {submitting ? "Adding…" : "Add clip"}
+        {submitting ? (mode === "file" ? "Uploading…" : "Adding…") : "Add clip"}
       </button>
     </form>
   );

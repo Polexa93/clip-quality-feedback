@@ -8,6 +8,9 @@ import { getYouTubeEmbedUrl, getYouTubeVideoId } from "../lib/youtube";
 import { TrashIcon } from "../components/icons";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
+/** Remembers the last reviewer name in this browser so it doesn't need to be retyped for every review. */
+const REVIEWER_NAME_KEY = "cqf.reviewerName";
+
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>();
   const clipId = Number(id);
@@ -33,7 +36,19 @@ export function ReviewPage() {
   useEffect(refresh, [clipId]);
 
   if (error) return <div className="page error">{error}</div>;
-  if (!clip) return <div className="page">Loading…</div>;
+
+  if (!clip) {
+    return (
+      <div className="page">
+        <Link to="/" className="back-link">
+          ← All clips
+        </Link>
+        <div className="skeleton-block" style={{ height: 34, width: "45%", margin: "0.6rem 0 1rem" }} />
+        <div className="skeleton-block" style={{ height: 320, margin: "0 0 1.1rem" }} />
+        <div className="skeleton-block" style={{ height: 260 }} />
+      </div>
+    );
+  }
 
   const youTubeId = getYouTubeVideoId(clip.videoUrl);
 
@@ -129,11 +144,16 @@ function ReviewForm({
   onSubmitted: () => void;
 }) {
   const [rating, setRating] = useState(0);
-  const [reviewerName, setReviewerName] = useState("");
+  const [reviewerName, setReviewerName] = useState(() => localStorage.getItem(REVIEWER_NAME_KEY) ?? "");
   const [comment, setComment] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (reviewerName.trim()) localStorage.setItem(REVIEWER_NAME_KEY, reviewerName);
+    else localStorage.removeItem(REVIEWER_NAME_KEY);
+  }, [reviewerName]);
 
   function toggleTag(tagId: number) {
     setSelectedTagIds((prev) => {
@@ -160,7 +180,7 @@ function ReviewForm({
         tagIds: [...selectedTagIds],
       });
       setRating(0);
-      setReviewerName("");
+      // Leave reviewerName as-is — it's remembered across reviews (see REVIEWER_NAME_KEY).
       setComment("");
       setSelectedTagIds(new Set());
       onSubmitted();
