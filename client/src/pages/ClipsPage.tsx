@@ -182,14 +182,21 @@ function UploadForm({ onCreated }: { onCreated: (title: string) => void }) {
           Title
           <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
         </label>
-        <label>
-          Type
+        <div className="field">
+          {/* Deliberately not a <label> wrapping the Dropdown: <button> is a
+              "labelable" element, so a wrapping <label> would forward clicks
+              on the popup's <li> options to the trigger button (since they
+              aren't the button itself), re-toggling it open right after an
+              option closes it. Associating via htmlFor/id instead gives the
+              same "click text to focus" behavior without that side effect. */}
+          <label htmlFor="clip-type-trigger">Type</label>
           <Dropdown
+            id="clip-type-trigger"
             value={clipType}
             onChange={setClipType}
             options={CLIP_TYPES.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
           />
-        </label>
+        </div>
       </div>
 
       <div className="form-row">

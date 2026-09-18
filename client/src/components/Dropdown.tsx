@@ -10,6 +10,7 @@ interface DropdownProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   options: DropdownOption<T>[];
+  id?: string;
 }
 
 /**
@@ -18,7 +19,7 @@ interface DropdownProps<T extends string> {
  * CSS — this renders its own trigger + listbox so colors, spacing, and
  * hover/selected states all follow the app theme.
  */
-export function Dropdown<T extends string>({ value, onChange, options }: DropdownProps<T>) {
+export function Dropdown<T extends string>({ value, onChange, options, id }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -75,6 +76,7 @@ export function Dropdown<T extends string>({ value, onChange, options }: Dropdow
     <div className="dropdown" ref={rootRef}>
       <button
         type="button"
+        id={id}
         className="dropdown__trigger"
         onClick={() => setOpen((o) => !o)}
         onKeyDown={handleKeyDown}
@@ -100,7 +102,14 @@ export function Dropdown<T extends string>({ value, onChange, options }: Dropdow
                 .filter(Boolean)
                 .join(" ")}
               onMouseEnter={() => setHighlighted(i)}
-              onClick={() => {
+              onClick={(e) => {
+                // The trigger <button> is a "labelable" element, and this
+                // list lives inside the same <label> (so clicking the
+                // visible "Type" text also opens the menu). Without
+                // stopping propagation here, a click on an option bubbles
+                // up to that <label>, which forwards a synthetic click to
+                // the button — re-toggling it open right after we close it.
+                e.stopPropagation();
                 onChange(opt.value);
                 setOpen(false);
               }}

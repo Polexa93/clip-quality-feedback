@@ -217,7 +217,8 @@ h2 {
   flex-wrap: wrap;
 }
 
-label {
+label,
+.field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -282,15 +283,29 @@ textarea:hover {
   transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease);
 }
 
-.dropdown__trigger:hover {
+/* Specificity note: the generic `button:hover:not(:disabled)` rule
+   (filter/transform/box-shadow) outranks a plain `.dropdown__trigger:hover`
+   selector, so it was still brightening this already-pale pink background
+   toward white on hover. The `.dropdown .dropdown__trigger` prefix bumps
+   specificity enough to reliably win. */
+.dropdown .dropdown__trigger:hover {
   border-color: var(--border-hover);
+  background: var(--surface-2);
   transform: none;
   filter: none;
   box-shadow: none;
 }
 
-.dropdown__trigger:focus-visible {
+.dropdown .dropdown__trigger:focus-visible {
   outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Active/open state — visibly distinct while the menu is open, then back
+   to the default resting background as soon as it closes. */
+.dropdown .dropdown__trigger[aria-expanded="true"] {
+  background: var(--surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
